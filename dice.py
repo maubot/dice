@@ -33,8 +33,15 @@ _OP_MAP = {
     ast.Mult: operator.mul,
     ast.Div: operator.truediv,
     ast.FloorDiv: operator.floordiv,
-    ast.Invert: operator.neg,
+    ast.Mod: operator.mod,
+    ast.Invert: operator.inv,
     ast.USub: operator.neg,
+    ast.UAdd: operator.pos,
+    ast.BitAnd: operator.and_,
+    ast.BitOr: operator.or_,
+    ast.BitXor: operator.xor,
+    ast.RShift: operator.rshift,
+    ast.LShift: operator.lshift,
 }
 
 
@@ -58,8 +65,7 @@ class Calc(ast.NodeVisitor):
     @classmethod
     def evaluate(cls, expression):
         tree = ast.parse(expression)
-        calc = cls()
-        return calc.visit(tree.body[0])
+        return cls().visit(tree.body[0])
 
 
 class DiceBot(Plugin):
@@ -86,6 +92,12 @@ class DiceBot(Plugin):
 
     @staticmethod
     def randomize(number: int, size: int) -> int:
+        if size < 0 or number < 0:
+            raise ValueError("randomize() only accepts non-negative values")
+        if size == 0 or number == 0:
+            return 0
+        elif size == 1:
+            return number
         result = 0
         for i in range(number):
             result += random.randint(1, size)
@@ -107,7 +119,7 @@ class DiceBot(Plugin):
         try:
             result = Calc.evaluate(pattern)
             await evt.reply(str(round(result, 2)))
-        except (TypeError, SyntaxError):
+        except (TypeError, ValueError, SyntaxError):
             self.log.exception(f"Failed to evaluate `{pattern}`")
             await evt.reply("Bad pattern 3:<")
             return
