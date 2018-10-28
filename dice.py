@@ -23,6 +23,7 @@ from maubot import Plugin, CommandSpec, Command, Argument, MessageEvent
 
 ARG_PATTERN = "$pattern"
 COMMAND_ROLL = f"roll {ARG_PATTERN}"
+COMMAND_ROLL_DEFAULT = "roll"
 
 pattern_regex = re.compile("([0-9]{0,2})d([0-9]{1,2})")
 
@@ -71,12 +72,17 @@ class DiceBot(Plugin):
                     ARG_PATTERN: Argument(description="The dice pattern to roll", matches=".+",
                                           required=True),
                 },
+            ), Command(
+                syntax=COMMAND_ROLL_DEFAULT,
+                description="Roll a single normal 6-sided dice",
             )],
         ))
-        self.client.add_command_handler(COMMAND_ROLL, self.handler)
+        self.client.add_command_handler(COMMAND_ROLL, self.roll)
+        self.client.add_command_handler(COMMAND_ROLL_DEFAULT, self.default_roll)
 
     async def stop(self) -> None:
-        self.client.remove_command_handler(COMMAND_ROLL, self.handler)
+        self.client.remove_command_handler(COMMAND_ROLL, self.roll)
+        self.client.remove_command_handler(COMMAND_ROLL_DEFAULT, self.default_roll)
 
     @staticmethod
     def randomize(number: int, size: int) -> int:
@@ -91,14 +97,17 @@ class DiceBot(Plugin):
         size = int(match.group(2))
         return str(cls.randomize(number, size))
 
-    async def handler(self, evt: MessageEvent) -> None:
+    async def default_roll(self, evt: MessageEvent) -> None:
+        await evt.reply(str(self.randomize(1, 6)))
+
+    async def roll(self, evt: MessageEvent) -> None:
         pattern = evt.content.command.arguments[ARG_PATTERN]
         self.log.debug(f"Handling `{pattern}` from {evt.sender}")
         pattern = pattern_regex.sub(self.replacer, pattern)
         try:
             result = Calc.evaluate(pattern)
+            await evt.reply(str(round(result, 2)))
         except (TypeError, SyntaxError):
             self.log.exception(f"Failed to evaluate `{pattern}`")
             await evt.reply("Bad pattern 3:<")
             return
-        await evt.reply(str(result))
