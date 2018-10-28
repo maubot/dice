@@ -32,6 +32,7 @@ _OP_MAP = {
     ast.Sub: operator.sub,
     ast.Mult: operator.mul,
     ast.Div: operator.truediv,
+    ast.Pow: operator.pow,
     ast.FloorDiv: operator.floordiv,
     ast.Mod: operator.mod,
     ast.Invert: operator.inv,
@@ -44,17 +45,41 @@ _OP_MAP = {
     ast.LShift: operator.lshift,
 }
 
+_OP_LIMITS = {
+    ast.Pow: (1000, 1000),
+    ast.LShift: (1000, 1000),
+    ast.Mult: (1_000_000_000_000_000, 1_000_000_000_000_000),
+    ast.Div: (1_000_000_000_000_000, 1_000_000_000_000_000),
+    ast.FloorDiv: (1_000_000_000_000_000, 1_000_000_000_000_000),
+    ast.Mod: (1_000_000_000_000_000, 1_000_000_000_000_000),
+}
+
 
 # AST-based calculator from https://stackoverflow.com/a/33030616/2120293
 class Calc(ast.NodeVisitor):
     def visit_BinOp(self, node):
         left = self.visit(node.left)
         right = self.visit(node.right)
-        return _OP_MAP[type(node.op)](left, right)
+        op_type = type(node.op)
+        try:
+            left_max, right_max = _OP_LIMITS[op_type]
+            if left > left_max or right > right_max:
+                raise ValueError(f"Value over bounds in operator {op_type.__name__}")
+        except KeyError:
+            pass
+        try:
+            op = _OP_MAP[op_type]
+        except KeyError:
+            raise SyntaxError(f"Operator {op_type.__name__} not allowed")
+        op(left, right)
 
     def visit_UnaryOp(self, node):
         operand = self.visit(node.operand)
-        return _OP_MAP[type(node.op)](operand)
+        try:
+            op = _OP_MAP[type(node.op)]
+        except KeyError:
+            raise SyntaxError(f"Operator {type(node.op).__name__} not allowed")
+        return op(operand)
 
     def visit_Num(self, node):
         return node.n
@@ -114,12 +139,17 @@ class DiceBot(Plugin):
 
     async def roll(self, evt: MessageEvent) -> None:
         pattern = evt.content.command.arguments[ARG_PATTERN]
+        if len(pattern) > 64:
+            await evt.reply("Bad pattern 3:<")
         self.log.debug(f"Handling `{pattern}` from {evt.sender}")
         pattern = pattern_regex.sub(self.replacer, pattern)
         try:
             result = Calc.evaluate(pattern)
-            await evt.reply(str(round(result, 2)))
-        except (TypeError, ValueError, SyntaxError, KeyError):
-            self.log.exception(f"Failed to evaluate `{pattern}`")
+            result = str(round(result, 2))
+            if len(result) > 512:
+                raise ValueError("Result too long")
+        except (TypeError, ValueError, SyntaxError, KeyError, OverflowError):
+            self.log.debug(f"Failed to evaluate `{pattern}`", exc_info=True)
             await evt.reply("Bad pattern 3:<")
             return
+        await evt.reply(result)
