@@ -119,7 +119,7 @@ class DiceBot(Plugin):
         try:
             result = Calc.evaluate(pattern)
             await evt.reply(str(round(result, 2)))
-        except (TypeError, ValueError, SyntaxError):
+        except (TypeError, ValueError, SyntaxError, KeyError):
             self.log.exception(f"Failed to evaluate `{pattern}`")
             await evt.reply("Bad pattern 3:<")
             return
