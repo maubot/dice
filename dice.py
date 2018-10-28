@@ -71,7 +71,7 @@ class Calc(ast.NodeVisitor):
             op = _OP_MAP[op_type]
         except KeyError:
             raise SyntaxError(f"Operator {op_type.__name__} not allowed")
-        op(left, right)
+        return op(left, right)
 
     def visit_UnaryOp(self, node):
         operand = self.visit(node.operand)
