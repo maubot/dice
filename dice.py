@@ -141,6 +141,7 @@ class DiceBot(Plugin):
         pattern = evt.content.command.arguments[ARG_PATTERN]
         if len(pattern) > 64:
             await evt.reply("Bad pattern 3:<")
+            return
         self.log.debug(f"Handling `{pattern}` from {evt.sender}")
         pattern = pattern_regex.sub(self.replacer, pattern)
         try:
