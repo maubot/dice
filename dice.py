@@ -19,7 +19,8 @@ import random
 import ast
 import re
 
-from maubot import Plugin, CommandSpec, Command, Argument, MessageEvent
+from maubot import Plugin, MessageEvent
+from maubot.handlers import command
 
 ARG_PATTERN = "$pattern"
 COMMAND_ROLL = f"roll {ARG_PATTERN}"
@@ -94,27 +95,6 @@ class Calc(ast.NodeVisitor):
 
 
 class DiceBot(Plugin):
-    async def start(self) -> None:
-        self.set_command_spec(CommandSpec(
-            commands=[Command(
-                syntax=COMMAND_ROLL,
-                description="Roll dice",
-                arguments={
-                    ARG_PATTERN: Argument(description="The dice pattern to roll", matches=".+",
-                                          required=True),
-                },
-            ), Command(
-                syntax=COMMAND_ROLL_DEFAULT,
-                description="Roll a single normal 6-sided dice",
-            )],
-        ))
-        self.client.add_command_handler(COMMAND_ROLL, self.roll)
-        self.client.add_command_handler(COMMAND_ROLL_DEFAULT, self.default_roll)
-
-    async def stop(self) -> None:
-        self.client.remove_command_handler(COMMAND_ROLL, self.roll)
-        self.client.remove_command_handler(COMMAND_ROLL_DEFAULT, self.default_roll)
-
     @staticmethod
     def randomize(number: int, size: int) -> int:
         if size < 0 or number < 0:
@@ -134,12 +114,12 @@ class DiceBot(Plugin):
         size = int(match.group(2))
         return str(cls.randomize(number, size))
 
-    async def default_roll(self, evt: MessageEvent) -> None:
-        await evt.reply(str(self.randomize(1, 6)))
-
-    async def roll(self, evt: MessageEvent) -> None:
-        pattern = evt.content.command.arguments[ARG_PATTERN]
-        if len(pattern) > 64:
+    @command.new("roll")
+    @command.argument("pattern", pass_raw=True, required=False)
+    async def roll(self, evt: MessageEvent, pattern: str) -> None:
+        if not pattern:
+            await evt.reply(str(self.randomize(1, 6)))
+        elif len(pattern) > 64:
             await evt.reply("Bad pattern 3:<")
             return
         self.log.debug(f"Handling `{pattern}` from {evt.sender}")
