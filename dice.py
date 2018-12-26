@@ -119,6 +119,7 @@ class DiceBot(Plugin):
     async def roll(self, evt: MessageEvent, pattern: str) -> None:
         if not pattern:
             await evt.reply(str(self.randomize(1, 6)))
+            return
         elif len(pattern) > 64:
             await evt.reply("Bad pattern 3:<")
             return
