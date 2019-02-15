@@ -186,7 +186,7 @@ class DiceBot(Plugin):
             result = str(round(result, 2))
             if len(result) > 512:
                 raise ValueError("Result too long")
-        except (TypeError, ValueError, SyntaxError, KeyError, OverflowError):
+        except (TypeError, ValueError, SyntaxError, KeyError, OverflowError, ZeroDivisionError):
             self.log.debug(f"Failed to evaluate `{pattern}`", exc_info=True)
             await evt.reply("Bad pattern 3:<")
             return
