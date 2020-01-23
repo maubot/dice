@@ -62,7 +62,15 @@ _ALLOWED_FUNCS = ["ceil", "copysign", "fabs", "factorial", "gcd", "remainder", "
                   "acosh", "asinh", "atanh", "cosh", "sinh", "tanh",
                   "erf", "erfc", "gamma", "lgamma"]
 
-_FUNC_MAP = {func: getattr(math, func) for func in _ALLOWED_FUNCS if hasattr(math, func)}
+_FUNC_MAP = {
+    **{func: getattr(math, func) for func in _ALLOWED_FUNCS if hasattr(math, func)},
+    "round": round,
+    "hash": hash,
+    "max": max,
+    "min": min,
+    "float": float,
+    "int": int,
+}
 
 _FUNC_LIMITS = {
     "factorial": 1000,
@@ -186,7 +194,8 @@ class DiceBot(Plugin):
             result = str(round(result, 2))
             if len(result) > 512:
                 raise ValueError("Result too long")
-        except (TypeError, ValueError, SyntaxError, KeyError, OverflowError, ZeroDivisionError):
+        except (TypeError, NameError, ValueError, SyntaxError, KeyError, OverflowError,
+                ZeroDivisionError):
             self.log.debug(f"Failed to evaluate `{pattern}`", exc_info=True)
             await evt.reply("Bad pattern 3:<")
             return
