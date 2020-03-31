@@ -1,0 +1,2 @@
+# Whether or not the output should include the individual die rolls
+show_individual_results: false

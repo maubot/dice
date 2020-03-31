@@ -5,3 +5,5 @@ license: AGPL-3.0-or-later
 modules:
 - dice
 main_class: DiceBot
+extra_files:
+- base-config.yaml

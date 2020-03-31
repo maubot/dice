@@ -13,17 +13,18 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import Match, Union, Any
+from typing import Match, Union, Any, Type
 import operator
 import random
 import math
 import ast
 import re
 
+from mautrix.util.config import BaseProxyConfig, ConfigUpdateHelper
 from maubot import Plugin, MessageEvent
 from maubot.handlers import command
 
-pattern_regex = re.compile("([0-9]{0,9})d([0-9]{1,9})")
+pattern_regex = re.compile("([0-9]{0,9})[dD]([0-9]{1,9})")
 
 _OP_MAP = {
     ast.Add: operator.add,
@@ -152,7 +153,19 @@ class Calc(ast.NodeVisitor):
         return cls().visit(tree.body[0])
 
 
+class Config(BaseProxyConfig):
+    def do_update(self, helper: ConfigUpdateHelper) -> None:
+        helper.copy("show_individual_results")
+
+
 class DiceBot(Plugin):
+    async def start(self) -> None:
+        self.config.load_and_update()
+
+    @classmethod
+    def get_config_class(cls) -> Type[Config]:
+        return Config
+
     @staticmethod
     def randomize(number: int, size: int) -> int:
         if size < 0 or number < 0:
@@ -199,4 +212,6 @@ class DiceBot(Plugin):
             self.log.debug(f"Failed to evaluate `{pattern}`", exc_info=True)
             await evt.reply("Bad pattern 3:<")
             return
+        if self.config["show_individual_results"] and pattern != result:
+            result = f"{pattern} = {result}"
         await evt.reply(result)
