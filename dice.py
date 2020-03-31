@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import Match, Union, Any, Type
+from collections import defaultdict
 import operator
 import random
 import math
@@ -155,53 +156,69 @@ class Calc(ast.NodeVisitor):
 
 class Config(BaseProxyConfig):
     def do_update(self, helper: ConfigUpdateHelper) -> None:
-        helper.copy("show_individual_results")
+        helper.copy("show_statement")
+        helper.copy("show_rolls")
 
 
 class DiceBot(Plugin):
+    show_rolls: bool = False
+    show_statement: bool = False
+
     async def start(self) -> None:
+        self.on_external_config_update()
+
+    def on_external_config_update(self) -> None:
         self.config.load_and_update()
+        self.show_rolls = self.config["show_rolls"]
+        self.show_statement = self.config["show_statement"]
 
     @classmethod
     def get_config_class(cls) -> Type[Config]:
         return Config
 
-    @staticmethod
-    def randomize(number: int, size: int) -> int:
-        if size < 0 or number < 0:
-            raise ValueError("randomize() only accepts non-negative values")
-        if size == 0 or number == 0:
-            return 0
-        elif size == 1:
-            return number
-        result = 0
-        if number < 100:
-            for i in range(number):
-                result += random.randint(1, size)
-        else:
-            mean = number * (size + 1) / 2
-            variance = number * (size ** 2 - 1) / 12
-            while result < number or result > number * size:
-                result = int(random.gauss(mean, math.sqrt(variance)))
-        return result
-
-    @classmethod
-    def replacer(cls, match: Match) -> str:
-        number = int(match.group(1) or "1")
-        size = int(match.group(2))
-        return str(cls.randomize(number, size))
-
     @command.new("roll")
     @command.argument("pattern", pass_raw=True, required=False)
     async def roll(self, evt: MessageEvent, pattern: str) -> None:
         if not pattern:
-            await evt.reply(str(self.randomize(1, 6)))
+            await evt.reply(str(random.randint(1, 6)))
             return
         elif len(pattern) > 64:
             await evt.reply("Bad pattern 3:<")
             return
         self.log.debug(f"Handling `{pattern}` from {evt.sender}")
-        pattern = pattern_regex.sub(self.replacer, pattern)
+
+        individual_rolls = [] if self.show_rolls else None
+
+        def randomize(number: int, size: int) -> int:
+            if size < 0 or number < 0:
+                raise ValueError("randomize() only accepts non-negative values")
+            if size == 0 or number == 0:
+                return 0
+            elif size == 1:
+                return number
+            _result = 0
+            if number < 100:
+                individual = [] if number < 20 and self.show_rolls else None
+                for i in range(number):
+                    roll = random.randint(1, size)
+                    if individual is not None:
+                        individual.append(roll)
+                    _result += roll
+                if individual:
+                    individual_rolls.append((number, size, individual))
+            else:
+                mean = number * (size + 1) / 2
+                variance = number * (size ** 2 - 1) / 12
+                while _result < number or _result > number * size:
+                    _result = int(random.gauss(mean, math.sqrt(variance)))
+            return _result
+
+        def replacer(match: Match) -> str:
+            number = int(match.group(1) or "1")
+            size = int(match.group(2))
+            return str(randomize(number, size))
+
+        pattern = pattern_regex.sub(replacer, pattern)
         try:
             result = Calc.evaluate(pattern)
             result = str(round(result, 2))
@@ -212,6 +229,10 @@ class DiceBot(Plugin):
             self.log.debug(f"Failed to evaluate `{pattern}`", exc_info=True)
             await evt.reply("Bad pattern 3:<")
             return
-        if self.config["show_individual_results"] and pattern != result:
+        if self.show_statement and pattern != result:
             result = f"{pattern} = {result}"
+        if individual_rolls:
+            result += "\n\n"
+            result += "\n".join(f"{number}d{size}: {' '.join(str(result) for result in results)}  "
+                                for number, size, results in individual_rolls)
         await evt.reply(result)

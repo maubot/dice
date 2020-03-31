@@ -1,2 +1,4 @@
-# Whether or not the output should include the individual die rolls
-show_individual_results: false
+# Whether or not the output should include the results of each XdY statement
+show_statement: false
+# Whether or not the output should include the results of individual dice rolls
+show_rolls: false
