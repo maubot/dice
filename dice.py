@@ -71,6 +71,7 @@ _FUNC_MAP = {
     "min": min,
     "float": float,
     "int": int,
+    "abs": abs,
 }
 
 _FUNC_LIMITS = {
@@ -123,6 +124,8 @@ class Calc(ast.NodeVisitor):
 
     def visit_Call(self, node: ast.Call) -> Any:
         if isinstance(node.func, ast.Name):
+            if node.func.id == "ord" and len(node.args) == 1 and isinstance(node.args[0], ast.Str):
+                return ord(node.args[0].s)
             try:
                 func = _FUNC_MAP[node.func.id]
             except KeyError:
