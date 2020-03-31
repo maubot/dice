@@ -1,4 +1,16 @@
-# Whether or not the output should include the results of each XdY statement
+# Whether or not the output should include the results of each XdY statement.
 show_statement: false
-# Whether or not the output should include the results of individual dice rolls
+# Whether or not the output should include the results of individual dice rolls.
 show_rolls: false
+
+# Number of dice rolls (the Y in XdY) after which show_rolls is ignored.
+show_rolls_limit: 20
+# Number of dice rolls after which dice rolls will not be individually randomized,
+# but rather picked randomly from a normal distribution.
+gauss_limit: 100
+
+# Maximum number of digits in result.
+result_max_length: 512
+
+# Number of decimal places that results should be rounded to. Set to -1 to disable rounding.
+round_decimals: 2

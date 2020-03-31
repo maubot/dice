@@ -14,7 +14,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import Match, Union, Any, Type
-from collections import defaultdict
 import operator
 import random
 import math
@@ -158,19 +157,31 @@ class Config(BaseProxyConfig):
     def do_update(self, helper: ConfigUpdateHelper) -> None:
         helper.copy("show_statement")
         helper.copy("show_rolls")
+        helper.copy("show_rolls_limit")
+        helper.copy("gauss_limit")
+        helper.copy("result_max_length")
+        helper.copy("round_decimals")
 
 
 class DiceBot(Plugin):
     show_rolls: bool = False
     show_statement: bool = False
+    show_rolls_limit: int = 20
+    gauss_limit: int = 100
+    result_max_length: int = 512
+    round_decimals: int = 2
 
     async def start(self) -> None:
         self.on_external_config_update()
 
     def on_external_config_update(self) -> None:
         self.config.load_and_update()
-        self.show_rolls = self.config["show_rolls"]
         self.show_statement = self.config["show_statement"]
+        self.show_rolls = self.config["show_rolls"]
+        self.show_rolls_limit = self.config["show_rolls_limit"]
+        self.gauss_limit = self.config["gauss_limit"]
+        self.result_max_length = self.config["result_max_length"]
+        self.round_decimals = self.config["round_decimals"]
 
     @classmethod
     def get_config_class(cls) -> Type[Config]:
@@ -197,8 +208,8 @@ class DiceBot(Plugin):
             elif size == 1:
                 return number
             _result = 0
-            if number < 100:
-                individual = [] if number < 20 and self.show_rolls else None
+            if number < self.gauss_limit:
+                individual = [] if self.show_rolls and number < self.show_rolls_limit else None
                 for i in range(number):
                     roll = random.randint(1, size)
                     if individual is not None:
@@ -221,8 +232,10 @@ class DiceBot(Plugin):
         pattern = pattern_regex.sub(replacer, pattern)
         try:
             result = Calc.evaluate(pattern)
-            result = str(round(result, 2))
-            if len(result) > 512:
+            if self.round_decimals >= 0:
+                result = round(result, self.round_decimals)
+            result = str(result)
+            if len(result) > self.result_max_length:
                 raise ValueError("Result too long")
         except (TypeError, NameError, ValueError, SyntaxError, KeyError, OverflowError,
                 ZeroDivisionError):
