@@ -24,7 +24,7 @@ from mautrix.util.config import BaseProxyConfig, ConfigUpdateHelper
 from maubot import Plugin, MessageEvent
 from maubot.handlers import command
 
-pattern_regex = re.compile("([0-9]{0,9})[dD]([0-9]{1,9})")
+pattern_regex = re.compile("([0-9]{0,9})([dD]|[wW][oO][dD])([0-9]{1,9})")
 
 _OP_MAP = {
     ast.Add: operator.add,
@@ -227,10 +227,31 @@ class DiceBot(Plugin):
                     _result = int(random.gauss(mean, math.sqrt(variance)))
             return _result
 
+        def wod_pool(pool: int, threshold: int) -> int:
+            if pool < 0 or threshold < 0:
+                raise ValueError("wodPool() only accepts non-negative values")
+            if pool == 0:
+                return 0
+            botches = 0
+            successes = 0
+            for i in range(pool):
+                roll = randomize(1, 10)
+                if roll >= threshold:
+                    successes += 1
+                elif roll == 1:
+                    botches += 1
+            return successes - botches
+
         def replacer(match: Match) -> str:
-            number = int(match.group(1) or "1")
-            size = int(match.group(2))
-            return str(randomize(number, size))
+            mode = match.group(2)
+            if mode.lower() == 'd':
+                number = int(match.group(1) or "1")
+                size = int(match.group(3))
+                return str(randomize(number, size))
+            elif mode.lower() == 'wod':
+                pool = int(match.group(1) or "1")
+                threshold = int(match.group(3) or "1")
+                return str(wod_pool(pool, threshold))
 
         pattern = pattern_regex.sub(replacer, pattern)
         try:
