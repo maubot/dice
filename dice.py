@@ -190,7 +190,10 @@ class DiceBot(Plugin):
     def get_config_class(cls) -> Type[Config]:
         return Config
 
-    @command.new("roll")
+    @command.new(
+        "roll", help="Roll dice(s), do the math",
+        arg_fallthrough=False, require_subcommand=False
+    )
     @command.argument("pattern", pass_raw=True, required=False)
     async def roll(self, evt: MessageEvent, pattern: str) -> None:
         if not pattern:
@@ -252,3 +255,16 @@ class DiceBot(Plugin):
             result += "\n".join(f"{number}d{size}: {' '.join(str(result) for result in results)}  "
                                 for number, size, results in individual_rolls)
         await evt.reply(result)
+
+    @roll.subcommand("help", help="Usage instructions")
+    async def help(self, evt: MessageEvent) -> None:
+        """Return help message."""
+        await evt.respond(
+            "The base command is `!roll`. \\\n"
+            "To roll a dice, pass `XdY` as an argument, where `X` is the "
+            "number of dices (optional) and `Y` is the number of sides on "
+            "each dice. \\\n"
+            "Most Python math and bitwise operators and basic `math` module "
+            "functions are also supported, which means you can roll different "
+            "kinds of dice and combine the results however you like."
+        )
