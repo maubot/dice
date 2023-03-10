@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import Match, Union, Any, Type
+from typing import Match, Optional, Tuple, Union, Any, Type
 import operator
 import random
 import math
@@ -24,7 +24,10 @@ from mautrix.util.config import BaseProxyConfig, ConfigUpdateHelper
 from maubot import Plugin, MessageEvent
 from maubot.handlers import command
 
-pattern_regex = re.compile("([0-9]{0,9})[dD]([0-9]{1,9})")
+pattern_regex = re.compile(
+    r"(\d{0,9})d((?:\d|(\{(-?\d), *(-?\d)\})){1,9})",
+    re.IGNORECASE
+)
 
 _OP_MAP = {
     ast.Add: operator.add,
@@ -190,7 +193,10 @@ class DiceBot(Plugin):
     def get_config_class(cls) -> Type[Config]:
         return Config
 
-    @command.new("roll")
+    @command.new(
+        "roll", help="Roll dice(s), do the math",
+        arg_fallthrough=False, require_subcommand=False
+    )
     @command.argument("pattern", pass_raw=True, required=False)
     async def roll(self, evt: MessageEvent, pattern: str) -> None:
         if not pattern:
@@ -203,37 +209,58 @@ class DiceBot(Plugin):
 
         individual_rolls = [] if self.show_rolls else None
 
-        def randomize(number: int, size: int) -> int:
-            if size < 0 or number < 0:
+        def randomize(number: int, size: Union[int, Tuple[int, int]]) -> int:
+            size_is_int: bool = isinstance(size, int)
+            choices_range: Tuple[int, int] = (
+                size if isinstance(size, tuple) else (1, size)
+            )
+            if not choices_range[0] <= choices_range[1]:
+                raise ValueError(
+                    "The range's first element must not be greater than the second"
+                )
+            largest: int = choices_range[1]
+            if size_is_int and largest < 0 or number < 0:
                 raise ValueError("randomize() only accepts non-negative values")
-            if size == 0 or number == 0:
+            if size_is_int and largest == 0 or number == 0:
                 return 0
-            elif size == 1:
+            elif size_is_int and largest == 1:
                 return number
             _result = 0
             if number < self.gauss_limit:
                 individual = [] if self.show_rolls and number < self.show_rolls_limit else None
-                for i in range(number):
-                    roll = random.randint(1, size)
+                for _ in range(number):
+                    roll = random.randint(*choices_range)
                     if individual is not None:
                         individual.append(roll)
                     _result += roll
-                if individual:
-                    individual_rolls.append((number, size, individual))
+                if individual and individual_rolls is not None:
+                    individual_rolls.append(
+                        (
+                            number,
+                            largest
+                            if size_is_int
+                            else "{" + ", ".join(str(i) for i in choices_range) + "}",
+                            individual
+                        )
+                    )
             else:
-                mean = number * (size + 1) / 2
-                variance = number * (size ** 2 - 1) / 12
-                while _result < number or _result > number * size:
+                mean = number * (largest + 1) / 2
+                variance = number * (largest ** 2 - 1) / 12
+                while _result < number or _result > number * largest:
                     _result = int(random.gauss(mean, math.sqrt(variance)))
             return _result
 
         def replacer(match: Match) -> str:
-            number = int(match.group(1) or "1")
-            size = int(match.group(2))
+            number: int = int(match.group(1) or "1")
+            range: Optional[str] = match.group(3)
+            size: Union[int, Tuple[int, int]] = (
+                int(match.group(2))
+                if not range
+                else (int(match.group(4)), int(match.group(5)))
+            )
             return str(randomize(number, size))
-
-        pattern = pattern_regex.sub(replacer, pattern)
         try:
+            pattern = pattern_regex.sub(replacer, pattern)
             result = Calc.evaluate(pattern)
             if self.round_decimals >= 0:
                 result = round(result, self.round_decimals)
@@ -252,3 +279,17 @@ class DiceBot(Plugin):
             result += "\n".join(f"{number}d{size}: {' '.join(str(result) for result in results)}  "
                                 for number, size, results in individual_rolls)
         await evt.reply(result)
+
+    @roll.subcommand("help", help="Usage instructions")
+    async def help(self, evt: MessageEvent) -> None:
+        """Return help message."""
+        await evt.respond(
+            "The base command is `!roll`. \\\n"
+            "To roll a dice, pass `XdY` as an argument, where `X` is the "
+            "number of dices (optional) and `Y` is the number of sides on "
+            "each dice. `Y` can be passed as a specific range as well "
+            "(for example: `{0,9}`, `{-5,-1}`). \\\n"
+            "Most Python math and bitwise operators and basic `math` module "
+            "functions are also supported, which means you can roll different "
+            "kinds of dice and combine the results however you like."
+        )
