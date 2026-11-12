@@ -118,7 +118,7 @@ class Calc(ast.NodeVisitor):
         if isinstance(node.value, (int, float)):
             if node.value > _NUM_MAX or node.value < _NUM_MIN:
                 raise ValueError(f"Number out of bounds")
-            return node.n
+            return node.value
         return None
 
     def visit_Name(self, node: ast.Name) -> Any:
